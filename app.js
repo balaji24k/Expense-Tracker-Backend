@@ -6,6 +6,7 @@ const compression = require('compression');
 const morgan = require('morgan'); 
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const sequelize = require("./util/database");
 const userRoutes = require("./routes/userRoutes");
@@ -23,7 +24,7 @@ const DownloadList = require('./models/DownloadList');
 
 require("dotenv").config();
 
-console.log("env>>>>>>>>",process.env.PORT)
+// console.log("env>>>>>>>>",process.env.PORT)
 const app = express();
 
 app.use(cors());
@@ -46,24 +47,33 @@ app.use("/purchase",purchaseRoutes);
 app.use("/premium", premiumRoutes);
 app.use("/password",passwordRoutes);
 
-Users.hasMany(Expenses);
-Expenses.belongsTo(Users);
+// Users.hasMany(Expenses);
+// Expenses.belongsTo(Users);
 
-Users.hasMany(Order);
-Order.belongsTo(Users);
+// Users.hasMany(Order);
+// Order.belongsTo(Users);
 
-Users.hasMany(ForgotPassword);
-ForgotPassword.belongsTo(Users);
+// Users.hasMany(ForgotPassword);
+// ForgotPassword.belongsTo(Users);
 
-Users.hasMany(DownloadList);
-DownloadList.belongsTo(Users);
+// Users.hasMany(DownloadList);
+// DownloadList.belongsTo(Users);
 
 const PORT = process.env.PORT;
 
-sequelize.sync()
-    .then(result => {
-        app.listen(PORT);
-    })
-    .catch(err => {
-        console.log(err)
-    })
+// sequelize.sync()
+//     .then(result => {
+//         app.listen(PORT);
+//     })
+//     .catch(err => {
+//         console.log(err)
+//     })
+
+mongoose.connect(process.env.MONGODB_URL)
+.then((result) => {
+    console.log("mongo connects");
+    app.listen(PORT);
+}).catch((err) => {
+    console.log(err);
+});
+  

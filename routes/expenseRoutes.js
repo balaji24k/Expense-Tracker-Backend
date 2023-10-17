@@ -5,12 +5,14 @@ const router = expense.Router();
 const expenseController = require("../controllers/expenseControllers");
 const auth = require("../middlewares/auth");
 
-router.post("/", auth.authenticate, expenseController.postData);
+router.use(auth.authenticate);
 
-router.get("/", auth.authenticate, expenseController.getData);
+router.post("/", expenseController.postData);
 
-router.delete("/:id",auth.authenticate, expenseController.deleteData);
+router.get("/", expenseController.getData);
 
-router.put("/:id", auth.authenticate, expenseController.updateData);
+router.delete("/:id", expenseController.deleteData);
+
+router.put("/:id", expenseController.updateData);
 
 module.exports = router;

@@ -11,21 +11,24 @@ exports.purchasePrimium = async (req, res, next) => {
     });
     const amount = 2500;
 
-    rzp.orders.create({ amount, currency: "INR" }, (err, order) => {
+    rzp.orders.create({ amount, currency: "INR" }, async (err, order) => {
       if (err) {
+        console.log("order failed");
         throw new Error(JSON.stringify(err));
       }
 
-      console.log("purchase>>>>>>>",order)
-      req.user
-        .createOrder({ orderId: order.id, status: "PENDING" })
-        .then((result) => {
-          console.log("result>>>>",result);
-          return res.status(201).json({ order, key_id: rzp.key_id });
-        })
-        .catch((err) => {
-          throw new Error(err);
-        });
+      console.log("purchase>>>>>>>", order);
+      const newOrder = new Order({
+        orderId: order.id,
+        status: "PENDING",
+        user: req.user._id,
+      });
+      req.user.orders.push(newOrder);
+
+      await newOrder.save();
+      await req.user.save();
+
+      res.status(201).json({ order, key_id: rzp.key_id });
     });
   } catch (err) {
     console.log("error in purchase>>>>>>", err);
@@ -37,21 +40,23 @@ exports.updatePrimium = async (req, res, next) => {
   console.log("req body updatePrem>>>>>>>>>>", req.body);
   try {
     const { payment_id, order_id } = req.body;
-    const order = await Order.findOne({ where: { orderId: order_id } });
-    const promise1 = order.update({ paymentId: payment_id, status: "Success" });
-    const promise2 = req.user.update({ isPremiumUser: true });
+    const order = await Order.findOne({ orderId: order_id });
 
-    Promise.all([promise1, promise2])
-      .then(() => {
-        return res
-          .status(200)
-          .json({ success: true, message: "Transaction Succesfull!" });
-      })
-      .catch((err) => {
-        throw new Error(err);
-      });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    order.paymentId = payment_id;
+    order.status = "Success";
+    req.user.isPremiumUser = true;
+
+    await order.save();
+    await req.user.save();
+
+    res.status(200).json({ success: true, message: "Transaction Succesfull!" });
   } catch (err) {
     console.log(err);
+    res.status(500).json({ message: "Internal Server Error", error: err });
   }
 };
 
@@ -59,18 +64,20 @@ exports.updateFailedOreder = async (req, res, next) => {
   const { order_id } = req.body;
 
   try {
-    const order = await Order.findOne({ where: { orderId: order_id } });
+    const order = await Order.findOne({ orderId: order_id });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
-    const updatedOrder = await order.update({ status: "Failed" });
-    res.status(200).json({ 
-      message: "Order status updated to Failed", 
-      order: updatedOrder
+
+    order.status = "Failed";
+    await order.save();
+
+    res.status(200).json({
+      message: "Order status updated to Failed",
+      order: order,
     });
-  } 
-  catch (err) {
+  } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal Server Error", error: err });
   }

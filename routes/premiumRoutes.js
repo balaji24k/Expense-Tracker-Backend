@@ -4,12 +4,12 @@ const router = expense.Router();
 const premiumController = require("../controllers/premiumController");
 const auth = require("../middlewares/auth");
 
-router.get("/showLeaderboard",auth.authenticate, premiumController.showLeaderboard);
+router.use(auth.authenticate);
 
-router.get("/download",auth.authenticate, premiumController.downloadExpenses);
+router.get("/showLeaderboard", premiumController.showLeaderboard);
 
-router.get("/getDownloadList",auth.authenticate, premiumController.getDownloadList);
+router.get("/download", premiumController.downloadExpenses);
 
-
+router.get("/getDownloadList", premiumController.getDownloadList);
 
 module.exports = router;

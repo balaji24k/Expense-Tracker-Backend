@@ -1,5 +1,6 @@
 const User = require("../models/Users");
 const Expense = require("../models/Expenses");
+const DownloadList = require('../models/DownloadList');
 
 require("dotenv").config();
 
@@ -20,93 +21,57 @@ const uploadtoS3 = (data, fileName) => {
     Body: data,
     ACL: 'public-read'
   }
-  return new Promise((resolve,reject) => {
-    s3bucket.upload(params, (err,s3response) => {
-      if(err) {
-        console.log("something went wrong in uploading", err);
+  return new Promise((resolve, reject) => {
+    s3bucket.upload(params, (err, s3response) => {
+      if (err) {
+        console.log("Error in uploading:", err);
         reject(err);
-      }
-      else{
-        console.log("success", s3response);
+      } else {
+        console.log("Upload successful:", s3response);
         resolve(s3response.Location);
       }
     });
   })
 };
 
-exports.downloadExpenses = async(req,res,next) => {
+exports.downloadExpenses = async (req, res, next) => {
   try {
-    const expenses = await req.user.getExpenses();
-    console.log("download>>>>>>>>>",req.user.id);
+    const expenses = await Expense.find({ _id: { $in: req.user.expenses } });
+
     const stringifiedExpenses = JSON.stringify(expenses);
     const fileName = `Expenses${req.user.id}/${new Date()}.txt`;
     const fileUrl = await uploadtoS3(stringifiedExpenses, fileName);
-    console.log("fileUrl:>>>>>>>>",fileUrl);
-    const file = await req.user.createDownloadList({fileUrl});
-    // console.log("res in download",response)
-    res.status(200).json(file);
+
+		const file = new DownloadList({ fileUrl: fileUrl });
+		await file.save();
+		req.user.downloadLists.push(file._id);
+		await req.user.save();
+		res.status(200).json({ fileUrl: file.fileUrl });
 
   } catch (error) {
-    console.log(error);
-    res.status(400).json({error});
+    console.error(error);
+    res.status(400).json({ error });
   }
 };
 
-exports.getDownloadList = async(req, res, next) => {
-	try {
-		const files = await req.user.getDownloadLists({
-			limit: 5,
-			offset: 0,
-			// order: [['id', 'DESC']],
-		});
-		// console.log("files download",files);
+exports.getDownloadList = async (req, res, next) => {
+  try {
+    // Assuming the downloadList is an array field in the User schema.
+    const userWithFiles = await User.findById(req.user._id).populate('downloadLists').exec();
+		const files = userWithFiles.downloadLists.slice(0, 5);
 		res.status(200).json(files);
-	} catch (error) {
-		console.log(error,"getdownload")
-	}
+  } catch (error) {
+    console.error(error, "getdownload");
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 }
 
-exports.showLeaderboard = async(req, res, next) => {
-	try {
-		const expenses = await User.findAll({
-			attributes : ['id', 'name', 'totalSpent' ],
-			order : [['totalSpent',"DESC"]]
-		});
+exports.showLeaderboard = async (req, res, next) => {
+  try {
+    const expenses = await User.find({}, 'id name totalSpent').sort({ totalSpent: -1 });
 
-		console.log("expenses>>>>>>>>>>", expenses[1]);
-		res.status(200).json(expenses);
-
-	} catch (error) {
-		res.status(404).json(error);
-	}
+    res.status(200).json(expenses);
+  } catch (error) {
+    res.status(404).json(error);
+  }
 };
-
-		//1st optimization
-		// const expenses = await Expense.findAll({
-		// 	attributes : ['userId', [sequelize.fn('sum',sequelize.col('expenses.price')),'spent']],
-		// 	group : ['userId']
-		// });
-
-		//without optimazation
-		// const totalExpenseByUser = {};
-		// expenses.forEach(expense => {
-		// 	// console.log("inside forEch>>>>>>>",expense.dataValues)
-		// 	let userId = expense.dataValues.userId;
-		// 	if (totalExpenseByUser[userId]) {
-		// 		totalExpenseByUser[userId] += expense.dataValues.price
-		// 	}
-		// 	else{
-		// 		totalExpenseByUser[userId] = expense.dataValues.price;
-		// 	}
-		// });
-		// // console.log("totalExpenseByUser>>>>>>>",totalExpenseByUser);
-
-		// const leaderboardData = []
-		// users.forEach(user => {
-		// 	// console.log("user foreach",user.dataValues);
-		// 	leaderboardData.push({
-		// 		name: user.dataValues.name,
-		// 		spent: totalExpenseByUser[user.dataValues.id] || 0
-		// 	})
-		// })
-		// leaderboardData.sort((a,b)=> b.spent - a.spent)
